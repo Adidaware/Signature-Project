@@ -1,0 +1,930 @@
+---
+title: "Signature Project"
+author: "Daware, Aditya"
+date: "Spring 2025"
+---
+
+## Read the CSV file
+```{r Dataset}
+url <- "https://raw.githubusercontent.com/Adidaware/Signature-Project/refs/heads/main/Student_depression_Dataset"
+df.full <- read.csv(url, stringsAsFactors = F)
+
+```
+
+Loaded the full dataset using the link and read.CSV() function.
+
+
+## Splitting the dataset to create an unknown dataset
+```{r}
+smp_size <- floor(0.90 * nrow(df.full)) 
+
+set.seed(123)
+train_ind <- sample(seq_len(nrow(df.full)), size = smp_size)
+
+df <- df.full[train_ind, ]           
+df.test <- df.full[-train_ind, ]  # Unknown dataset
+
+```
+
+Split the data to make an unknown dataset, which will be used later to predict 
+
+### Checking the data split proportion
+```{r}
+## Checking the splitting of data
+prop.table(table(df$Depression)) * 100
+prop.table(table(df.test$Depression)) * 100
+```
+
+The data is equally split.
+
+## Exploratory Data Analysis:
+```{r}
+head(df)
+str(df)
+summary(df)
+```
+
+The exploratory data analysis tells us about the number and type of features. It helps us decide the machine learning algorithms we can choose based on the data.
+
+## Checking for missing data
+```{r Missing Data}
+any(is.na(df))
+```
+We have no missing values.
+
+Since we have no missing values we will random remove values and treat them as missing values in the net step.
+
+## Introducing missing values
+```{r}
+set.seed(123)
+
+n_missing <- 10
+
+# Get random row and column indices
+rows <- sample(1:nrow(df), n_missing, replace = TRUE)
+cols <- sample(1:ncol(df), n_missing, replace = TRUE)
+
+# Replacing those values with NA
+for (i in 1:n_missing) {
+  df[rows[i], cols[i]] <- NA
+}
+
+any(is.na(df))
+```
+
+We have missing values in the dataset.
+
+
+### Checking for missing data
+```{r Checking_for_missing_data}
+column.names <- colnames(df)
+any(is.na(df[, column.names]))
+```
+We check if there are any missing values in the features of the dataset. Missing values are found.
+
+### Handling Missing Data
+```{r Finding the missing data}
+missing.value <- which(is.na(df), arr.ind = TRUE)
+missing.value
+```
+We pinpoint the missing values and extract the column number. 
+
+## Data Visualization & Handling missing values:
+#### Data Visualization & Imputing missing values for the Age column
+```{r}
+library(ggplot2)
+
+## Visualization for Age column
+ggplot(df, aes(x = Age)) +
+  geom_bar(fill = "blue") +
+  labs(title = "Age Distribution", x = "Age", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+mean.age <- mean(df$Age, na.rm = TRUE)
+median.age <- median(df$Age, na.rm = T)
+
+## Age Values
+z <-missing.value[1,2]
+df[,z][is.na(df[,z])] <- median.age
+any(is.na(df[z]))
+```
+
+The mean age of the individuals (`r mean.age`) and the median of age (`r median.age`) is very close to each other, indicates that the data is symmetrical and not heavily skewed. Therefore, we can use the median value to impute the data.
+
+
+#### Data Visualization & Imputing missing values for the City Column
+```{r}
+
+## Visualization for City column
+ggplot(df, aes(x = City)) +
+  geom_bar(fill = "red") +
+  labs(title = "City Distribution", x = "City", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+mode_city <- names(sort(table(df$City), decreasing = TRUE))[1]
+
+df$City[is.na(df$City)] <- mode_city # Replace missing values in City with the mode
+
+y <-missing.value[2,2]
+any(is.na(df[y]))
+
+```
+
+
+
+
+#### Data Visualization & Imputing missing values for the Profession Column
+```{r}
+
+## Visualization for City column
+ggplot(df, aes(x = Profession)) +
+  geom_bar(fill = "skyblue") +
+  labs(title = "Individual Distribution", x = "Individuals in profession", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+total.students <- sum(df$Profession == "Student", na.rm = T)
+
+df$Profession[is.na(df$Profession)] <- "Student"  # Replace missing values in Profession with the mode
+
+x <-missing.value[3,2]
+any(is.na(df[x]))
+
+```
+
+We imputed the missing value with "Student", since the percentage of students (`r total.students`) is very high and the odds of the missing data being a student is also very high.
+Such kind of imputation can actually be biased if the missing data was not student and someone from other profession. Regardless, the overall impact would be very small due to sheer number of students.
+
+
+#### Data Visualization & Imputing missing values for the Work Pressure Column
+```{r}
+
+## Visualization for City column
+ggplot(df, aes(x = Work.Pressure)) +
+  geom_bar(fill = "Green") +
+  labs(title = "Work Pressure", x = "Level of work pressure ", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+total.work.pressure <- sum(df$Work.Pressure == "0", na.rm = T)
+
+
+df$Work.Pressure[is.na(df$Work.Pressure)] <- "0"  # Replace missing values in Work pressure with the mode
+
+w <-missing.value[4,2]
+any(is.na(df[w]))
+
+```
+
+We have imputed the missing values with "0", (indicating that individuals are not satisfied with their job) due to their higher number with a percentage of `r (total.work.pressure / 27901) * 100`%. 
+Such kind of imputation can actually be biased if the missing data was not "0". Regardless, the overall impact would be very small due to sheer number of individuals with "0" work pressure.
+
+#### Data Visualization & Imputing missing values for the CGPA column
+```{r}
+library(ggplot2)
+
+## Visualization for CGPA column
+ggplot(df, aes(x = CGPA)) +
+  geom_histogram(binwidth = 0.1, fill = "black", color = "white") +
+  labs(title = "CGPA Distribution", x = "CGPA", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 10))
+
+mean.CGPA <- mean(df$CGPA, na.rm = TRUE)
+
+
+## CGPA Values
+v <- missing.value[5,2]
+df[,v][is.na(df[,v])] <- mean.CGPA
+any(is.na(df[v]))
+```
+
+We imputed the missing value with the mean value, since averaging is the best way to impute values and not affect the data analysis.
+
+
+#### Data Visualization & Imputing missing values for the Study Satisfaction column
+```{r}
+library(ggplot2)
+
+## Visualization for Study Satisfaction column
+ggplot(df, aes(x = Study.Satisfaction)) +
+  geom_bar(fill = "Cyan") +
+  labs(title = "Study Satisfaction", x = "Range", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+median.study.satisfaction <- median(df$Study.Satisfaction, na.rm = T)
+
+## Adjusting missing values
+t <-missing.value[6,2]
+df[,t][is.na(df[,t])] <- median.study.satisfaction
+any(is.na(df[t]))
+
+
+```
+
+We imputed the missing value with the median value, since it is better than randomly choosing a level.
+
+#### Data Visualization & Imputing missing values for the Job Satisfaction column
+```{r}
+library(ggplot2)
+
+## Visualization for Job Satisfaction column
+ggplot(df, aes(x = Job.Satisfaction)) +
+  geom_bar(fill = "violet") +
+  labs(title = "Job Satisfaction", x = "Satisfaction level", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+total.job.sat <- sum(df$Job.Satisfaction == "0", na.rm = T)
+
+
+df$Job.Satisfaction[is.na(df$Job.Satisfaction)] <- "0"  # Replace missing values in Job Satisfaction with the mode
+
+s <-missing.value[8,2]
+any(is.na(df[s]))
+
+```
+
+We have imputed the missing values with "0", (indicating that individuals are not satisfied with their job) due to their higher number with a percentage of `r (total.job.sat / 27901) * 100`%. 
+
+#### Data Visualization & Imputing missing values for Suicial Thoughts column
+```{r}
+
+r <-missing.value[9,2]
+df <- df[!is.na(df[,r]), ]
+any(is.na(df[r]))
+
+```
+
+Having Suicidal thoughts is a very important feature and we cannot randomly assign a YES or a NO, therefore we have categorized it as "No Response".
+Later on, while trying to construct a model, it generated more than 2 factors and hence was an issue which was not resolvable before training Support Vector Machine Model and the row was removed.
+
+#### Data Visualization & Imputing missing values for Family History of mental illness column
+```{r}
+
+# Remove rows with NA in the specified column
+f <- missing.value[10,2]
+df <- df[!is.na(df[,f]), ]
+any(is.na(df[f]))
+
+```
+
+Family History of mental illness can be a deciding factor and therefore we cannot randomly assign a YES or a No, hence we have categorized it as "No Response". 
+Later on, while trying to construct a model, it generated more than 2 factors and hence was an issue which was not resolvable before training Support Vector Machine Model and the row was removed..
+
+## Encoding Features
+```{r Enconding features}
+
+library(dplyr)
+
+df <- df[, -which(names(df) == "id")]
+
+## Dummy Encoding for gender, suicidal thoughts and family history
+df$Gender <- ifelse(df$Gender == "Male",0,1)
+df$Profession <- ifelse(df$Profession == "Student",1,0)
+
+
+## use one hot encoding when the data has no relation to each other 
+df$Dietary.Habits.Mod <- ifelse(df$Dietary.Habits == "Moderate", 1,0)
+df$Dietary.Habits <- ifelse(df$Dietary.Habits == "Healthy", 1,0)
+
+
+## Frequency encode the City column and Degree
+city_freq <- table(df$City)
+df$City <- city_freq[df$City]
+
+degree_freq <- table(df$Degree)
+df$Degree <- degree_freq[df$Degree]
+
+
+## Categorical encoding 
+
+df$Sleep.Duration <- ifelse(df$Sleep.Duration == "'Less than 5 hours'", 1,
+                     ifelse(df$Sleep.Duration == "'5-6 hours'", 2,
+                     ifelse(df$Sleep.Duration == "'7-8 hours'", 3,
+                     ifelse(df$Sleep.Duration == "'More than 8 hours'", 4, 5))))
+
+df$City <- as.numeric(df$City)
+df$Degree <- as.numeric(df$Degree)
+
+```
+
+All the machine learning algorithm used in this project need the features to be numeric.
+We have used frequency encoding for the city as it would unnecessarily increasure the features and would cause multi colinearity.
+To avoid multi colinearity, we have encoded sleep duration as level.
+We have removed the 'id' column as it is not significant for the machine learning algorithm.
+
+
+## Correlation Matrix and checking for multi-colinearity
+```{r correlation}
+library(corrplot)
+library(psych)
+
+# 1. Select only numeric columns
+num_df <- df[ , sapply(df, is.numeric) ]
+
+# 2. Compute correlation matrix (pairwise complete obs)
+M <- cor(num_df, use = "pairwise.complete.obs")
+M
+
+pairs.panels(
+  num_df,
+  method    = "pearson",     # correlation method
+  main      = "Pairwise Scatter & Pearson Correlations"
+)
+
+cov_matrix <- cov(num_df)
+print(cov_matrix)
+
+
+```
+
+Variables that stand out due to relatively high absolute covariances or correlations:
+
+City: has large values with CGPA (2.51), Study.Satisfaction (-4.18), Degree (-17561), etc.
+Degree: shows huge values like -5736, -17561, 3.6 million — this suggests a large variance or possibly a data encoding issue.
+
+## Checking for Outliers
+```{r Outliers}
+
+z.score<- function(column){
+  return(abs((column - mean(column)) / sd(column)))
+}
+
+numeric.columns <- sapply(df, is.numeric)
+binary.columns <- sapply(df, function(col) all(unique(na.omit(col)) %in% c(0, 1)))
+df.numeric <- df[, numeric.columns & !binary.columns]
+
+outlier_results <- list()
+
+for (c in colnames(df.numeric)) {
+  r <- z.score(df.numeric[[c]])
+  out <- any(r >= 3, na.rm = TRUE)
+
+  outlier_results[[c]] <- list( r, out)
+}
+
+names(outlier_results)[sapply(outlier_results, function(x) x[[2]])]
+
+```
+
+Found outliers in 3 columns (Age, City and CGPA)
+
+### Pinpointing the outliers
+```{r Pinpointing outliers}
+outlier.list <- c("Age", "City", "CGPA")
+
+# Create a list to store outlier indices
+outlier_indices <- list()
+
+for (col in outlier.list) {
+  # If column is numeric, apply z-score method
+  if (is.numeric(df[[col]])) {
+    z.value <- abs((df[[col]] - mean(df[[col]], na.rm = TRUE)) / sd(df[[col]], na.rm = TRUE))
+    outliers <- which(z.value >= 3)
+    outlier_indices[[col]] <- outliers
+  } else {
+    freq <- table(df[[col]])
+    rare <- names(freq[freq < 5])
+    outliers <- which(df[[col]] %in% rare)
+    outlier_indices[[col]] <- outliers
+  }
+}
+
+outlier_indices
+
+```
+
+In this step we locate the exact location of the outliers.
+
+
+### Imputing Outliers
+```{r Imputing outliers}
+# Impute outliers in Age
+z_age <- z.score(df$Age)
+median_age <- median(df$Age[z_age < 3], na.rm = TRUE)
+df$Age[z_age >= 3] <- median_age
+
+# Impute outliers in CGPA
+z_cgpa <- z.score(df$CGPA)
+median_cgpa <- median(df$CGPA[z_cgpa < 3], na.rm = TRUE)
+df$CGPA[z_cgpa >= 3] <- median_cgpa
+
+# For City, optionally remove rare values
+rare_cities <- names(table(df$City)[table(df$City) < 5])
+df <- df[!df$City %in% rare_cities, ]
+
+outlier_results <- list()
+
+for (c in colnames(df.numeric)) {
+  r <- z.score(df[[c]])
+  out <- any(r >= 3, na.rm = TRUE)
+  outlier_results[[c]] <- list(r, out)
+}
+
+names(outlier_results)[sapply(outlier_results, function(x) x[[2]])]
+
+```
+
+In this case, I decided to treat outliers as missing values and then impute them with the median values and then checked again if there are outliers and new outliers were found. We repeat the steps on 'Checking for outliers' followed by 'Pinpointing the outliers' and 'Handle outliers' until no outliers are found.
+For the city columns since it is encoded using the total number times the city appears, it has to be dealt differently.
+
+
+### Re-check rare cities 
+```{r}
+
+city_freq <- table(df$City)
+rare_cities <- names(city_freq[city_freq < 5])
+
+# Drop remaining rare categories
+df <- df[!df$City %in% rare_cities, ]
+
+# Re-run check (optional)
+z_city_check <- table(df$City)
+summary(z_city_check)
+
+```
+
+Removed all the outliers in the city column.
+
+## Splitting Data into Training and Validation Sets
+```{r Data spliting}
+library(caret)
+library(lattice)
+
+set.seed(9878)
+trainIndex <- createDataPartition(df$Depression, p = 0.9, list = FALSE)
+
+trainData <- df[trainIndex, ]
+validData <- df[-trainIndex, ]
+
+prop.table(table(trainData$Depression)) * 100
+prop.table(table(validData$Depression)) * 100
+```
+
+Splitting the data into train and test and then checking for the balance after the split.
+The data is split proportionally.
+
+# Cross Validation using the dataset (df.unknown):
+## Exploratory Data Analysis:
+```{r}
+head(df.test)
+str(df.test)
+summary(df.test)
+
+```
+
+
+## Checking for missing data in unknown dataset
+```{r Missing Data unknown dataset}
+any(is.na(df.test))
+```
+We have no missing values in the unknown dataset.
+
+
+## Encoding Features in unknown dataset
+```{r Enconding features unknown}
+
+df.test <- df.test[, -which(names(df.test) == "id")]
+
+## Dummy Encoding for gender, suicidal thoughts and family history
+df.test$Gender <- ifelse(df.test$Gender == "Male",0,1)
+df.test$Profession <- ifelse(df.test$Profession == "Student",1,0)
+
+## One hot encoding
+df.test$Dietary.Habits.Mod <- ifelse(df.test$Dietary.Habits == "Moderate", 1,0)
+df.test$Dietary.Habits <- ifelse(df.test$Dietary.Habits == "Healthy", 1,0)
+
+## Frequency encode the City column and Degree
+city_freq.test <- table(df.test$City)
+df.test$City <- city_freq.test[df.test$City]
+
+degree_freq.test <- table(df.test$Degree)
+df.test$Degree <- degree_freq[df.test$Degree]
+
+## Categorical encoding 
+
+df.test$Sleep.Duration <- ifelse(df.test$Sleep.Duration == "'Less than 5 hours'", 1,
+                     ifelse(df.test$Sleep.Duration == "'5-6 hours'", 2,
+                     ifelse(df.test$Sleep.Duration == "'7-8 hours'", 3,
+                     ifelse(df.test$Sleep.Duration == "'More than 8 hours'", 4, 5))))
+
+df.test$City <- as.numeric(df.test$City)
+df.test$Degree <- as.numeric(df.test$Degree)
+
+```
+
+All the machine learning algorithm used in this project need the features to be numeric.
+We have used frequency encoding for the city as it would unnecessarily increase the features and would cause multi colinearity.
+To avoid multi colinearity, we have encoded sleep duration as level.
+We have removed the 'id' column as it is not significant for the machine learning algorithm.
+
+
+# Machine Learning Algorithms
+## Logistic Regression
+```{r Logistic regression}
+
+trainData$Depression <- as.factor(trainData$Depression)
+validData$Depression <- as.factor(validData$Depression)
+
+log_model <- glm(Depression ~ ., data = trainData, family = binomial)
+summary(log_model)
+log_model
+
+f1_score <- function(actual, predicted) {
+  cm <- confusionMatrix(predicted, actual, positive = "1")
+  precision <- cm$byClass["Precision"]
+  recall <- cm$byClass["Recall"]
+  f1 <- 2 * ((precision * recall) / (precision + recall))
+  return(f1)
+}
+
+log_prob <- predict(log_model, validData, type = "response")
+log_pred <- ifelse(log_prob > 0.5, 1, 0)
+
+library(caret)
+confusionMatrix(
+  data = factor(log_pred, levels=c(0,1)),
+  reference = factor(validData$Depression, levels=c(0,1))
+)
+
+f1_log <- f1_score(as.factor(validData$Depression), as.factor(log_pred))
+f1_log
+
+```
+
+The Logistic Regression model was created with an accuracy range of 0.83 to 0.86 and F1 score of `r f1_log`.
+
+### Logistic regression model to predict the unknown
+```{r}
+
+df.test$Depression <- as.factor(df.test$Depression)
+df.test$Work.Pressure <- as.character(df.test$Work.Pressure)
+df.test$Job.Satisfaction <- as.character(df.test$Job.Satisfaction)
+
+log_prob.test <- predict(log_model, df.test, type = "response")
+log_pred.test <- ifelse(log_prob.test > 0.5, 1, 0)
+
+library(caret)
+confusionMatrix(
+  data = factor(log_pred.test, levels=c(0,1)),
+  reference = factor(df.test$Depression, levels=c(0,1))
+)
+
+f1_log.test <- f1_score(as.factor(df.test$Depression), as.factor(log_pred.test))
+f1_log.test
+```
+
+Used the logistic regression model to predict depression on another validation dataset with a F1 score of `r f1_log.test`.
+
+## Random Forest Model
+```{r random forests}
+
+library(randomForest)
+
+trainData$Depression <- as.factor(trainData$Depression)
+validData$Depression <- as.factor(validData$Depression)
+
+set.seed(123)
+
+rf_model <- randomForest(Depression ~ ., data = trainData, ntree = 200, mtry = sqrt(ncol(trainData)-1))
+plot(rf_model)
+
+# Predict class labels from RF
+rf_pred <- predict(rf_model, validData, type = "class")
+
+# Ensure factor levels are aligned
+actual <- factor(validData$Depression, levels = c(0, 1))
+predicted <- factor(rf_pred, levels = c(0, 1))
+
+library(caret)
+confusionMatrix(
+  data = factor(rf_pred, levels=c(0,1)),
+  reference = factor(validData$Depression, levels=c(0,1))
+)
+
+# Compute F1 score
+f1_rf <- f1_score(actual, predicted)
+
+```
+
+We created a model using random forests using randomForest() function from the randomForest package.
+The F1 score was `r f1_rf`.
+
+### Cross Validation using Random Forest
+```{r}
+
+df.test$Depression <- as.factor(df.test$Depression)
+
+rf_pred.test <- predict(rf_model, df.test, type = "class")
+
+# Ensure factor levels are aligned
+actual.test <- factor(df.test$Depression, levels = c(0, 1))
+predicted.test <- factor(rf_pred.test, levels = c(0, 1))
+
+# Confusion Matrix
+confusionMatrix(
+  data = factor(rf_pred.test, levels = c(0, 1)),
+  reference = factor(df.test$Depression, levels = c(0, 1))
+)
+
+# Compute F1 score for the test set
+f1_rf.test <- f1_score(actual.test, predicted.test)
+f1_rf.test
+```
+
+Used the random forest model to predict depression on another validation dataset with a F1 score of `r f1_rf.test`.
+
+
+## Ensemble model (Random Forest and Logistic Regression)
+```{r}
+## Ensemble Models
+
+
+# 1. Get predicted probabilities on the validation set
+log_prob_val <- predict(log_model, validData, type = "response")
+rf_prob_val  <- predict(rf_model, validData, type = "prob")[, "1"]
+
+# 2. Average them
+avg_prob_val  <- (log_prob_val + rf_prob_val) / 2
+avg_pred_val  <- ifelse(avg_prob_val > 0.5, 1, 0)
+
+# 3. Evaluate
+avg_cm <- confusionMatrix(
+  factor(avg_pred_val, levels = c(0,1)),
+  validData$Depression
+)
+
+avg_f1 <- f1_score(as.factor(validData$Depression), as.factor(avg_pred_val))
+
+avg_cm
+cat("Averaging Ensemble F1 =", round(avg_f1, 3), "\n")
+
+```
+
+Constructed an *Ensemble model* combing *Random Forest* and *Logistic Regression*. The ensemble model had a F1 score of `r avg_f1`.
+
+
+## Ensemble Model
+```{r}
+library(caret)
+library(caretEnsemble)
+
+# Convert 'Depression' to factor if not already
+df$Depression <- as.factor(df$Depression)
+
+# Set up train control
+ctrl <- trainControl(method = "cv", number = 5,
+                     savePredictions = "final", classProbs = TRUE)
+# Check the levels
+levels(df$Depression)
+
+# Option 1: Automatically fix with make.names
+levels(df$Depression) <- make.names(levels(df$Depression))
+
+# List of base models
+models <- caretList(
+  Depression ~ ., data = df,
+  trControl = ctrl,
+  methodList = c("rpart", "glm", "rf")
+)
+
+# Create ensemble model using majority voting
+ensemble <- caretEnsemble(models, metric = "Accuracy", trControl = ctrl)
+
+# Summary
+summary(ensemble)
+
+```
+
+This summary compares the F1 scores of the 4 models. The summary indicated Logistic Regression is the best model of the 4 models.
+
+## Normalization of the features
+```{r Standardization}
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x))) }
+
+is.binary<- function(column){
+  value<- column
+  length(value)==2 & all(value %in% c(0, 1))
+}
+
+numeric_cols <- sapply(trainData, is.numeric)
+binary_cols <- sapply(trainData, is.binary)
+to_normalize <- numeric_cols & !binary_cols
+
+trainData[to_normalize] <- lapply(trainData[to_normalize], normalize)
+
+numeric_cols <- sapply(validData, is.numeric)
+binary_cols <- sapply(validData, is.binary)
+to_normalize <- numeric_cols & !binary_cols
+
+validData[to_normalize] <- lapply(validData[to_normalize], normalize)
+
+```
+
+We scale the numerical variables using min-max normalization.
+
+
+## Support Vector Model
+```{r Support Vector Machines}
+
+library(kernlab)
+
+trainData$Depression <- factor(trainData$Depression, levels=c(0,1))
+validData$Depression <- factor(validData$Depression, levels=c(0,1))
+
+trainData$Work.Pressure <- factor(trainData$Work.Pressure)
+validData$Work.Pressure <- factor(validData$Work.Pressure)
+
+trainData$Job.Satisfaction <- factor(trainData$Job.Satisfaction)
+validData$Job.Satisfaction <- factor(validData$Job.Satisfaction)
+
+trainData$Financial.Stress <- as.numeric(trainData$Financial.Stress)
+
+validData$Financial.Stress <- as.numeric(validData$Financial.Stress)
+
+# Ensuring factor levels for 'Work.Pressure' match
+validData$Work.Pressure <- factor(validData$Work.Pressure, levels = levels(trainData$Work.Pressure))
+
+# Ensuring factor levels for 'Job.Satisfaction' match
+validData$Job.Satisfaction <- factor(validData$Job.Satisfaction, levels = levels(trainData$Job.Satisfaction))
+
+
+cost.values <- c(1, seq(from = 5, to = 40, by = 5))
+
+accuracy.values <- sapply(cost.values, function(x){
+  set.seed(1234)
+  svm_model <- ksvm(Depression ~ .,
+                 data = trainData,
+                 kernel = "rbfdot",
+                 C = x)
+  svm_pred <- predict(svm_model,
+                    subset(validData, select = -Depression),
+                    type = "response")
+  agree <- ifelse(svm_pred == validData$Depression, 1, 0)
+  accuracy <- sum(agree) / nrow(validData)
+  return(accuracy)
+})
+
+plot(cost.values, accuracy.values, type = "b")
+
+
+svm_model <- ksvm(Depression ~ .,
+                 data = trainData,
+                 kernel = "rbfdot",
+                 C = 0.1)
+
+svm_pred <- predict(svm_model,
+                    subset(validData, select = -Depression),
+                    type = "response")
+
+library(caret)
+confusionMatrix(
+  data = factor(svm_pred, levels=c(0,1)),
+  reference = factor(validData$Depression, levels=c(0,1))
+)
+
+f1_svm <- f1_score(as.factor(validData$Depression), as.factor(svm_pred))
+f1_svm
+```
+
+The Support Vector Machine was created with accuracy range of 0.8 to 0.9 and F1 score of `r f1_svm`.
+The plot shows model accuracy at different cost values, indicating cost value of 01 is most optimal.
+
+
+## Cross Validation using Support Vector model
+```{r}
+
+df.test$Depression <- factor(df.test$Depression, levels=c(0,1))
+
+df.test$Work.Pressure <- factor(df.test$Work.Pressure)
+
+df.test$Job.Satisfaction <- factor(df.test$Job.Satisfaction)
+
+df.test$Financial.Stress <- as.numeric(df.test$Financial.Stress)
+
+
+# Ensuring factor levels for 'Work.Pressure' match
+df.test$Work.Pressure <- factor(df.test$Work.Pressure, levels = levels(trainData$Work.Pressure))
+
+# Ensuring factor levels for 'Job.Satisfaction' match
+df.test$Job.Satisfaction <- factor(df.test$Job.Satisfaction, levels = levels(trainData$Job.Satisfaction))
+
+svm_pred.test <- predict(svm_model,
+                    subset(df.test, select = -Depression),
+                    type = "response")
+
+## Since we got coercion error while converting to numeric data type, we are omitting the row with NA value in the validation dataset
+sum(complete.cases(subset(df.test, select = -Depression)))
+which(!complete.cases(subset(df.test, select = -Depression)))  # Gives index of row with NA value
+
+df.test <- df.test[complete.cases(subset(df.test, select = -Depression)), ]
+
+f1_svm.test <- f1_score(as.factor(df.test$Depression), as.factor(svm_pred.test))
+f1_svm.test
+```
+
+
+## Neural Network Model
+```{r Neural Network, eval=F}
+library(neuralnet)
+
+trainData_nn <- trainData
+trainData_nn[] <- lapply(trainData_nn, function(x) {
+  if (is.factor(x) || is.character(x)) {
+    as.numeric(as.factor(x))
+  } else {
+    x
+  }
+})
+
+# Do the same for validData (for later predictions)
+validData_nn <- validData
+validData_nn[] <- lapply(validData_nn, function(x) {
+  if (is.factor(x) || is.character(x)) {
+    as.numeric(as.factor(x))
+  } else {
+    x
+  }
+})
+
+softplus <- function(x) {
+  log(1 + exp(x))
+}
+
+
+# Train the neural network
+nn_model <- neuralnet(Depression ~ .,
+                      data = trainData_nn,
+                      hidden = c(5),
+                      linear.output = F,
+                      threshold = 0.05,
+                      lifesign = "full",
+                      stepmax = 1e+06,
+                      rep = 3,
+                      act.fct = softplus, 
+                      learningrate = 0.01)
+
+# Plot the neural network
+plot(nn_model)
+
+validData_nn <- validData
+validData_nn[] <- lapply(validData_nn, function(x) {
+  if (is.factor(x) || is.character(x)) {
+    as.numeric(as.factor(x))
+  } else {
+    x
+  }
+})
+
+
+# Predict on test set
+nn_results <- compute(nn_model, validData[, predictors])
+nn_pred_prob <- nn_results$net.result
+nn_pred <- ifelse(nn_pred_prob > 0.5, 1, 0)
+
+# Evaluate
+confusion_nn <- table(Predicted = nn_pred, Actual = validData$Depression)
+print(confusion_nn)
+
+## The algorithm did not converge in the given time.
+```
+
+The neural network model run for 10000000 steps and did not converge. 
+Several combination of hidden nodes and hidden layers were tried, even the threshold and learningrate was changed but it still did not converge.
+
+Ultimately, *Logistic Regression*, *Random Forest* and *Support Vector Machine* models were used to predict on the second validation dataset. 
+We obtained an accuracy range of 0.83 to 0.86 on all models with *F1 Score* of `r f1_log.test`, `r f1_rf.test` and `r f1_svm.test` for *Logistic Regression*, *Random Forest* and *Support Vector Machine* models respectively. Out of the 3 models, *Logistic Regression* and *Random Forest* shows highest accuracy and F1 score.
+
+
+## Comparing the prediction
+```{r}
+
+log_pred.test <- log_pred.test[-1960]
+rf_pred.test <- rf_pred.test[-1960]
+
+df.pred <- data.frame(
+  log_pred.test,
+  rf_pred.test,
+  svm_pred.test
+)
+
+df.pred
+
+```
+
+Used Logistic Regression, Random Forest and Support Vector Machine models to predict second validation dataset.
+
+
+## Comparing F1 scores
+```{r}
+results <- data.frame(
+  Model = c("Logistic", "Random Forest", "SVM", "Avg Ensemble"),
+  F1    = c(
+    round(f1_log.test, 3),
+    round(f1_rf.test,  3),
+    round(f1_svm.test, 3),
+    round(avg_f1, 3)
+  )
+)
+print(results)
+
+```
+The Logistic Regression model gave the highest f1 score of 86.4 % and accuracy of the 4 models.
